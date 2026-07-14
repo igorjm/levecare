@@ -1,0 +1,23 @@
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# CDK
+infra/cdk.out/
+infra/cdk.context.json
+
+# Java
+services/patients/target/
+
+# Go
+services/go/**/bootstrap
+services/go/**/*.zip
+dist/
+
+# Env / local
+.env*
+!.env.example
+.DS_Store
+*.log

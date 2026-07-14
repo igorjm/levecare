@@ -1,0 +1,8 @@
+{
+  "app": "npx ts-node --prefer-ts-exts bin/levecare.ts",
+  "context": {
+    "region": "us-east-1",
+    "notifyEmail": "igorjmelo4@gmail.com",
+    "@aws-cdk/aws-iam:minimizePolicies": true
+  }
+}

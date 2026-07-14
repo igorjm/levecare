@@ -1,0 +1,181 @@
+export const locales = ["pt", "en"] as const;
+export type Locale = (typeof locales)[number];
+
+export const dictionaries = {
+  pt: {
+    nav: { intake: "Avaliação", booking: "Agenda", dashboard: "Painel" },
+    hero: {
+      badge: "Projeto de demonstração — não é um serviço médico real",
+      title: "Cuidado médico para emagrecer, redesenhado para o Brasil",
+      subtitle:
+        "Acompanhamento guiado por médicos, avaliação online e prescrição digital — simples, direto e acessível.",
+      cta: "Começar avaliação gratuita",
+      secondary: "Ver como funciona",
+    },
+    features: {
+      title: "Tudo que você precisa, incluído",
+      items: [
+        { title: "Avaliação de elegibilidade", text: "Questionário clínico online com resultado imediato." },
+        { title: "Médicos com CRM ativo", text: "Consultas por vídeo com especialistas verificados." },
+        { title: "Prescrição digital", text: "Receita nata digital com assinatura ICP-Brasil e registro SNCR (simulado nesta demo)." },
+        { title: "Acompanhamento contínuo", text: "Ajuste de dose e suporte pelo canal que você já usa." },
+      ],
+    },
+    plans: {
+      title: "Planos transparentes, sem fidelidade",
+      items: [
+        { name: "Avulso", price: "R$89", period: "por consulta", features: ["Consulta por vídeo", "Receita digital", "Sem mensalidade"] },
+        { name: "Plano Cuidado", price: "R$149", period: "/mês", features: ["Consultas trimestrais", "Time de cuidado", "Plano nutricional", "Gestão de prescrição"], highlight: true },
+        { name: "Plano Completo", price: "R$299", period: "/mês", features: ["Tudo do Cuidado", "Consultas mensais", "Logística de medicação", "Suporte prioritário"] },
+      ],
+    },
+    intake: {
+      title: "Avaliação de elegibilidade",
+      subtitle: "Baseada em critérios clínicos para tratamento com GLP-1 (demonstração).",
+      email: "E-mail",
+      age: "Idade",
+      height: "Altura (cm)",
+      weight: "Peso (kg)",
+      comorbidities: "Condições diagnosticadas",
+      comorbidityOptions: { "diabetes-2": "Diabetes tipo 2", hipertensao: "Hipertensão", apneia: "Apneia do sono", dislipidemia: "Dislipidemia" },
+      pregnant: "Gestante ou amamentando",
+      eatingDisorder: "Histórico de transtorno alimentar",
+      submit: "Ver meu resultado",
+      eligible: "Você é elegível para avaliação médica",
+      eligibleText: "Com base nas suas respostas, você atende aos critérios iniciais. O próximo passo seria agendar uma consulta.",
+      notEligible: "No momento, você não atende aos critérios",
+      notEligibleText: "Isso não é um diagnóstico. Procure orientação médica presencial para entender suas opções.",
+      bmi: "IMC calculado",
+      next: "Agendar consulta",
+      error: "Não foi possível enviar sua avaliação. Tente novamente.",
+    },
+    booking: {
+      title: "Agende sua consulta",
+      subtitle: "Horários de demonstração com a rede médica fictícia.",
+      name: "Nome completo",
+      email: "E-mail",
+      pick: "Escolha um horário",
+      submit: "Confirmar agendamento",
+      confirmed: "Consulta confirmada!",
+      confirmedText: "Você receberá um e-mail de confirmação (nesta demo, o e-mail vai para a caixa verificada no SES).",
+      error: "Não foi possível agendar. Tente novamente.",
+    },
+    dashboard: {
+      title: "Painel do paciente",
+      demoNote: "Área autenticada de demonstração: crie um registro de paciente, capture consentimento LGPD e emita uma prescrição fictícia.",
+      createPatient: "Criar registro de paciente",
+      name: "Nome",
+      email: "E-mail",
+      consentTitle: "Consentimento LGPD",
+      consentPurpose: "Tratamento de dados de saúde para acompanhamento clínico",
+      grant: "Conceder consentimento",
+      revoke: "Revogar",
+      prescriptionTitle: "Prescrição (demonstração)",
+      issue: "Emitir prescrição demo",
+      download: "Baixar PDF",
+      signIn: "Entrar",
+      signUp: "Criar conta",
+      signOut: "Sair",
+      password: "Senha",
+      confirmCode: "Código de confirmação",
+      confirm: "Confirmar",
+      authNote: "Autenticação real via Amazon Cognito.",
+    },
+    footer: {
+      disclaimer:
+        "LeveCare é um projeto de portfólio. Telas, planos, médicos e prescrições são fictícios. Nada aqui constitui aconselhamento médico. Requisitos reais: CFM 2.314/2022, ICP-Brasil, ANVISA RDC 1.000/2025 (SNCR) e LGPD.",
+      built: "Construído com Java, Go, Next.js e AWS serverless por",
+    },
+  },
+  en: {
+    nav: { intake: "Assessment", booking: "Booking", dashboard: "Dashboard" },
+    hero: {
+      badge: "Demonstration project — not a real medical service",
+      title: "Doctor-guided weight care, redesigned for Brazil",
+      subtitle:
+        "Physician-led follow-up, online assessment, and digital prescriptions — simple, direct, and affordable.",
+      cta: "Start free assessment",
+      secondary: "See how it works",
+    },
+    features: {
+      title: "Everything you need, included",
+      items: [
+        { title: "Eligibility assessment", text: "Online clinical questionnaire with instant results." },
+        { title: "Licensed physicians", text: "Video consultations with CRM-verified specialists." },
+        { title: "Digital prescription", text: "Natively digital prescription with ICP-Brasil signature and SNCR registration (simulated in this demo)." },
+        { title: "Continuous care", text: "Dose adjustments and support on the channel you already use." },
+      ],
+    },
+    plans: {
+      title: "Transparent plans, no lock-in",
+      items: [
+        { name: "Single visit", price: "R$89", period: "per consult", features: ["Video consultation", "Digital prescription", "No subscription"] },
+        { name: "Care Plan", price: "R$149", period: "/mo", features: ["Quarterly consults", "Care team", "Nutrition plan", "Prescription management"], highlight: true },
+        { name: "Complete Plan", price: "R$299", period: "/mo", features: ["Everything in Care", "Monthly consults", "Medication logistics", "Priority support"] },
+      ],
+    },
+    intake: {
+      title: "Eligibility assessment",
+      subtitle: "Based on clinical criteria for GLP-1 treatment (demonstration).",
+      email: "Email",
+      age: "Age",
+      height: "Height (cm)",
+      weight: "Weight (kg)",
+      comorbidities: "Diagnosed conditions",
+      comorbidityOptions: { "diabetes-2": "Type 2 diabetes", hipertensao: "Hypertension", apneia: "Sleep apnea", dislipidemia: "Dyslipidemia" },
+      pregnant: "Pregnant or breastfeeding",
+      eatingDisorder: "History of eating disorder",
+      submit: "See my result",
+      eligible: "You are eligible for medical evaluation",
+      eligibleText: "Based on your answers, you meet the initial criteria. The next step would be booking a consultation.",
+      notEligible: "You do not currently meet the criteria",
+      notEligibleText: "This is not a diagnosis. Seek in-person medical guidance to understand your options.",
+      bmi: "Calculated BMI",
+      next: "Book consultation",
+      error: "Could not submit your assessment. Please try again.",
+    },
+    booking: {
+      title: "Book your consultation",
+      subtitle: "Demo slots with the fictitious medical network.",
+      name: "Full name",
+      email: "Email",
+      pick: "Pick a time",
+      submit: "Confirm booking",
+      confirmed: "Consultation confirmed!",
+      confirmedText: "You will receive a confirmation email (in this demo, mail goes to the SES-verified inbox).",
+      error: "Could not book. Please try again.",
+    },
+    dashboard: {
+      title: "Patient dashboard",
+      demoNote: "Authenticated demo area: create a patient record, capture LGPD consent, and issue a mock prescription.",
+      createPatient: "Create patient record",
+      name: "Name",
+      email: "Email",
+      consentTitle: "LGPD consent",
+      consentPurpose: "Health data processing for clinical follow-up",
+      grant: "Grant consent",
+      revoke: "Revoke",
+      prescriptionTitle: "Prescription (demo)",
+      issue: "Issue demo prescription",
+      download: "Download PDF",
+      signIn: "Sign in",
+      signUp: "Sign up",
+      signOut: "Sign out",
+      password: "Password",
+      confirmCode: "Confirmation code",
+      confirm: "Confirm",
+      authNote: "Real authentication via Amazon Cognito.",
+    },
+    footer: {
+      disclaimer:
+        "LeveCare is a portfolio project. Screens, plans, physicians, and prescriptions are fictitious. Nothing here is medical advice. Real-world requirements: CFM 2.314/2022, ICP-Brasil, ANVISA RDC 1.000/2025 (SNCR), and LGPD.",
+      built: "Built with Java, Go, Next.js, and AWS serverless by",
+    },
+  },
+};
+
+export type Dictionary = (typeof dictionaries)["pt"];
+
+export function getDictionary(locale: string): Dictionary {
+  return (dictionaries as unknown as Record<string, Dictionary>)[locale] ?? dictionaries.pt;
+}
