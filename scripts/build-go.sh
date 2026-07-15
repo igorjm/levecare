@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
 # Cross-compiles each Go service to dist/<service>/bootstrap for the
 # Lambda provided.al2023 ARM64 runtime (ADR-002).
+# Prefers Docker (golang:1.22); falls back to native go.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# When invoked on the host, always go through with-go.sh so Docker is preferred.
+# Inside the container, GO_IN_DOCKER=1 skips re-entry (native go in the image).
+if [[ "${GO_IN_DOCKER:-}" != "1" ]]; then
+  exec "$REPO_ROOT/scripts/with-go.sh" env GO_IN_DOCKER=1 ./scripts/build-go.sh
+fi
+
 mkdir -p dist
 
 for svc in intake scheduling notification; do

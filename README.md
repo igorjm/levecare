@@ -40,18 +40,24 @@ docs/             Productization study, architecture, ADRs
 
 ## Prerequisites
 
-- Node.js 20+, Go 1.22+, Java 21 + Maven
+**On the Mac (native):**
+
+- Node.js 20+
+- Docker Desktop (for Go / Java builds when those toolchains are not installed)
 - AWS account + AWS CLI configured (`aws sts get-caller-identity`)
-- CDK bootstrap once per account/region: `npx cdk bootstrap`
+- CDK bootstrap once per account/region — see [docs/deployment.md](docs/deployment.md)
+
+**Go / Java:** Prefer Docker. `./scripts/build-go.sh`, `./scripts/build-java.sh`, and `./scripts/test-docker.sh` use `golang:1.22` and `maven:3.9-eclipse-temurin-21` when Docker Desktop is running (avoids host JDK mismatches). Native Go 1.22+ / Java 21 + Maven are used only if Docker is unavailable.
 
 ## Build & deploy
 
 ```bash
-# Go services (from repo root)
+# Go + Java (Docker used automatically if go/mvn are not on PATH)
 ./scripts/build-go.sh
+./scripts/build-java.sh
 
-# Java service
-cd services/patients && mvn -q package && cd ../..
+# Tests (same Docker fallback)
+./scripts/test-docker.sh
 
 # Frontend
 cd web && npm ci && npm run build && cd ..
@@ -59,6 +65,8 @@ cd web && npm ci && npm run build && cd ..
 # Infra (deploys everything)
 cd infra && npm ci && npx cdk deploy --all
 ```
+
+One-time AWS OIDC + GitHub Actions setup: [docs/deployment.md](docs/deployment.md).
 
 CI does the same on every push to `main` — see [.github/workflows/deploy.yml](.github/workflows/deploy.yml).
 
