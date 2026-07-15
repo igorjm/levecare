@@ -70,7 +70,7 @@ Open [http://localhost:3000](http://localhost:3000). Without the `NEXT_PUBLIC_*`
 
 **On the Mac:** Node.js 20+, Docker Desktop, AWS CLI (for deploy).
 
-Go / Java run in containers when Docker is up (`golang:1.22`, `maven:3.9-eclipse-temurin-21`); native Go 1.22+ / Java 21 + Maven only if Docker is unavailable.
+Go uses native `go` when installed (GitHub Actions/`setup-go`); otherwise Docker `golang:1.22`. Java/Maven prefer Docker `maven:3.9-eclipse-temurin-21` when the daemon is up (avoids host JDK mismatches), else native Maven.
 
 ```bash
 ./scripts/build-go.sh

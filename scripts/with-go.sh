@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Run a command with Go available.
-# Prefer Docker (golang:1.22) when the daemon is up; otherwise use native `go`.
+# Prefer native `go` (CI / local installs); fall back to Docker golang:1.22.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GO_IMAGE="${GO_IMAGE:-golang:1.22}"
+
+if command -v go >/dev/null 2>&1; then
+  exec "$@"
+fi
 
 use_docker() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
@@ -30,10 +34,6 @@ if use_docker; then
     "$@"
 fi
 
-if command -v go >/dev/null 2>&1; then
-  exec "$@"
-fi
-
-echo "error: Docker is not running and go is not installed" >&2
-echo "start Docker Desktop, or install Go 1.22+" >&2
+echo "error: go is not installed and Docker is not running" >&2
+echo "install Go 1.22+, or start Docker Desktop" >&2
 exit 1
