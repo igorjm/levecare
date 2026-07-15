@@ -1,0 +1,32 @@
+---
+description: LeveCare project identity, goals, and non-negotiables for every chat
+alwaysApply: true
+---
+
+# LeveCare — project context
+
+Portfolio **demo** of Brazilian doctor-guided weight-care telehealth (MEDVi-inspired for BR). **Not a real medical service.** Never imply clinical validity for prescriptions, providers, or care flows.
+
+## Why it exists
+- Fill portfolio gap: day job = Java/Spring/React; side projects = Next/Vercel/AI. Missing = **AWS + second backend language**.
+- Healthtech narrative ties to Animati (radiology) background.
+- Include a real **productization study** (BR market, CFM/ANVISA/LGPD, business model) — not an afterthought.
+
+## Locked stack (do not casually reverse)
+- **AWS serverless**, always-free oriented, budget alarm **$5/mo**. Target steady cost ~$0–1.
+- **Java 21 + Spring Boot 3 + Lambda SnapStart** = clinical core (`patients-service`).
+- **Go + provided.al2023 ARM64** = intake, scheduling, notification.
+- DynamoDB one table/service (on-demand); API Gateway HTTP API + Cognito; EventBridge + SQS → SES.
+- Next.js **static export** on S3 + CloudFront (AWS-hosted, not Vercel).
+- IaC: **CDK TypeScript**; CI: GitHub Actions **OIDC** (no long-lived keys).
+- Demo region: **us-east-1**; production LGPD posture documented as **sa-east-1**.
+
+## Product MVP (demo-safe)
+Landing + plans → Go eligibility intake → Cognito patient → mock scheduling → Java LGPD consent + watermarked demo Rx PDF (ICP-Brasil/SNCR placeholders) → async SES emails.
+
+## Docs of record
+- `docs/productization.md` — market / regulation / model
+- `docs/architecture.md` — ADRs + cost
+- `docs/deployment.md` — AWS OIDC bootstrap
+
+Prefer extending these over inventing conflicting architecture in chat.

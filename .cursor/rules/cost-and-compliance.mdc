@@ -1,0 +1,27 @@
+---
+description: Cost guardrails and demo vs real medical/regulatory boundaries
+alwaysApply: true
+---
+
+# Cost & compliance guardrails
+
+## Cost — keep near $0
+- No NAT Gateway, no VPC-attached Lambdas, no always-on containers (ECS/EKS/RDS).
+- DynamoDB on-demand; CloudWatch log retention **7 days**; SES **sandbox** only.
+- No custom domain / Route53 until explicitly requested (avoids fixed monthly fee).
+- Prefer SnapStart over provisioned concurrency for Java.
+
+## Demo vs real launch
+| Demo does | Real launch needs |
+|-----------|-------------------|
+| Mock providers / slots | Credentialed CRM doctors + video |
+| Watermarked Rx PDF + placeholders | ICP-Brasil NGS2 + SNCR API |
+| Rules-based BMI/comorbidity scoring | Medical-director protocol |
+| Plans UI only (no payments) | PIX Automático + cards |
+| SES email | WhatsApp Business primary |
+| Consent records + sa-east-1 posture in docs | DPO, RIPD, ANPD processes |
+
+## Regulatory keywords (cite, do not invent)
+Lei 14.510/2022, CFM 2.314/2022, CFM 2.299/2021, ANVISA RDC 873/2024 + RDC 1.000/2025 (SNCR), LGPD art. 5/11. Competitors for narrative: Liti, Farmex, Manual vs MEDVi US.
+
+UI and API copy must stay PT-BR-first with explicit **demonstração / portfolio** disclaimers.

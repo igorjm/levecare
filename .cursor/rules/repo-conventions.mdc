@@ -1,0 +1,34 @@
+---
+description: Monorepo layout, build commands, and service conventions
+alwaysApply: true
+---
+
+# Repo conventions
+
+```
+services/patients/   Java clinical core
+services/go/         intake | scheduling | notification (one Go module)
+infra/               CDK (BackendStack + FrontendStack)
+web/                 Next.js static export, PT-BR/EN
+docs/                productization, architecture, deployment
+scripts/build-go.sh  Go → dist/<svc>/bootstrap (linux/arm64)
+```
+
+## Build locally
+- Go: `./scripts/build-go.sh` and `go test ./...` in `services/go`
+- Java: `mvn -q package` in `services/patients` → `target/patients-service.jar`
+- Web: `npm ci && npm run build` in `web` → `web/out`
+- Infra: `npm ci && npx cdk synth` in `infra` (needs built Go/Java artifacts for full deploy)
+
+## Patterns
+- Domain events: `levecare.*` source, detail types like `intake.completed`, `booking.confirmed`, `prescription.issued`.
+- Java: shaded jar for Lambda (not Boot repackage); SnapStart via published version + alias.
+- Go: structured `slog` JSON; SES sandbox sends to verified `NOTIFY_EMAIL`.
+- DynamoDB keys: `pk` / `sk` single-table per service.
+- API: public `POST/GET /intake`, `GET /slots`; JWT for `/patients*`, `/bookings*`.
+
+## Portfolio sibling
+Career integration lives in `~/workspace/igorjm.github.io` (`projects.ts`, messages, LinkedIn projects). Do not treat that repo as in-scope unless the user asks.
+
+## Status note
+Platform code is on GitHub `igorjm/levecare`. AWS deploy may still need first-time `aws login`, CDK bootstrap, and OIDC role per `docs/deployment.md`.
