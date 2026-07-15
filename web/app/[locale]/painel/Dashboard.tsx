@@ -26,10 +26,13 @@ export function Dashboard({ dict }: { dict: Dictionary }) {
   async function handleAuth(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const form = new FormData(event.currentTarget);
+    // Pass submitter so FormData includes the clicked button's name/value
+    // (without it, mode is missing and signup always falls through to signin).
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const form = new FormData(event.currentTarget, submitter ?? undefined);
     const email = String(form.get("email"));
     const password = String(form.get("password"));
-    const mode = String(form.get("mode"));
+    const mode = String(form.get("mode") ?? submitter?.value ?? "signin");
     try {
       if (mode === "signup") {
         await signUp({ username: email, password, options: { userAttributes: { email } } });
