@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { configureAuth, getToken, signIn, signOut, signUp, confirmSignUp } from "@/lib/auth";
 import type { Dictionary } from "@/lib/i18n";
+import { Button } from "@/components/ui/Button";
+import { Field, Input } from "@/components/ui/Field";
+import { SurfaceCard } from "@/components/ui/SurfaceCard";
+import { Icon } from "@/components/ui/DemoBadge";
 
 type AuthStage = "signedOut" | "confirming" | "signedIn";
 
@@ -26,8 +30,6 @@ export function Dashboard({ dict }: { dict: Dictionary }) {
   async function handleAuth(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    // Pass submitter so FormData includes the clicked button's name/value
-    // (without it, mode is missing and signup always falls through to signin).
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const form = new FormData(event.currentTarget, submitter ?? undefined);
     const email = String(form.get("email"));
@@ -100,129 +102,162 @@ export function Dashboard({ dict }: { dict: Dictionary }) {
     }
   }
 
-  const inputClass =
-    "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-teal-500 focus:outline-none";
-  const buttonClass =
-    "rounded-lg bg-teal-600 px-5 py-2.5 font-semibold text-white hover:bg-teal-700 disabled:opacity-50";
-
   if (stage === "confirming") {
     return (
-      <form onSubmit={handleConfirm} className="mt-8 max-w-sm space-y-4">
-        <label className="block text-sm font-medium text-slate-700">
-          {t.confirmCode}
-          <input name="code" required className={inputClass} />
-        </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className={buttonClass}>
-          {t.confirm}
-        </button>
-      </form>
+      <SurfaceCard className="mx-auto mt-10 max-w-md space-y-5">
+        <div className="text-center">
+          <h2 className="font-display text-3xl font-bold text-primary">LeveCare</h2>
+          <p className="mt-1 text-caption text-on-surface-variant">{t.confirmCode}</p>
+        </div>
+        <form onSubmit={handleConfirm} className="space-y-4">
+          <Field label={t.confirmCode}>
+            <Input name="code" required autoComplete="one-time-code" />
+          </Field>
+          {error && <p className="text-sm text-error">{error}</p>}
+          <Button type="submit" className="w-full">
+            {t.confirm}
+          </Button>
+        </form>
+      </SurfaceCard>
     );
   }
 
   if (stage === "signedOut") {
     return (
-      <form onSubmit={handleAuth} className="mt-8 max-w-sm space-y-4">
-        <p className="text-xs text-slate-500">{t.authNote}</p>
-        <label className="block text-sm font-medium text-slate-700">
-          {t.email}
-          <input name="email" type="email" required className={inputClass} />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          {t.password}
-          <input name="password" type="password" required minLength={10} className={inputClass} />
-        </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex gap-3">
-          <button type="submit" name="mode" value="signin" className={buttonClass}>
-            {t.signIn}
-          </button>
-          <button
-            type="submit"
-            name="mode"
-            value="signup"
-            className="rounded-lg border border-teal-600 px-5 py-2.5 font-semibold text-teal-700 hover:bg-teal-50"
-          >
-            {t.signUp}
-          </button>
+      <SurfaceCard className="mx-auto mt-10 max-w-md space-y-5">
+        <div className="text-center">
+          <h2 className="font-display text-3xl font-bold text-primary">LeveCare</h2>
+          <p className="mt-1 text-caption text-on-surface-variant">{t.subtitle}</p>
         </div>
-      </form>
+        <form onSubmit={handleAuth} className="space-y-4">
+          <Field label={t.email}>
+            <Input name="email" type="email" required autoComplete="email" />
+          </Field>
+          <Field label={t.password}>
+            <Input name="password" type="password" required minLength={10} autoComplete="current-password" />
+          </Field>
+          {error && <p className="text-sm text-error">{error}</p>}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button type="submit" name="mode" value="signin" className="flex-1">
+              {t.authCta}
+              <span aria-hidden>→</span>
+            </Button>
+            <Button type="submit" name="mode" value="signup" variant="secondary" className="flex-1">
+              {t.signUp}
+            </Button>
+          </div>
+          <div className="flex justify-center">
+            <span className="inline-flex items-center gap-2 rounded-full bg-surface-container px-3 py-1 text-xs text-on-surface-variant">
+              <Icon name="verified_user" className="text-[16px]" />
+              {t.authNote}
+            </span>
+          </div>
+          <p className="text-center text-caption text-outline">{t.newAccount}</p>
+        </form>
+      </SurfaceCard>
     );
   }
 
   return (
-    <div className="mt-8 space-y-8">
-      <div className="text-right">
+    <div className="mt-8 space-y-6">
+      <div className="flex items-center justify-end">
         <button
+          type="button"
           onClick={() => signOut().then(() => setStage("signedOut"))}
-          className="text-sm text-slate-500 underline hover:text-teal-700"
+          className="text-sm text-on-surface-variant underline hover:text-primary"
         >
           {t.signOut}
         </button>
       </div>
 
       {!patient ? (
-        <form onSubmit={createPatient} className="space-y-4 rounded-xl border border-slate-200 p-6">
-          <h2 className="font-semibold text-slate-900">{t.createPatient}</h2>
-          <label className="block text-sm font-medium text-slate-700">
-            {t.name}
-            <input name="name" required className={inputClass} />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {t.email}
-            <input name="email" type="email" required className={inputClass} />
-          </label>
-          <button type="submit" className={buttonClass}>
-            {t.createPatient}
-          </button>
-        </form>
+        <SurfaceCard>
+          <h2 className="text-headline text-on-background">{t.createPatient}</h2>
+          <form onSubmit={createPatient} className="mt-4 space-y-4">
+            <Field label={t.name}>
+              <Input name="name" required />
+            </Field>
+            <Field label={t.email}>
+              <Input name="email" type="email" required />
+            </Field>
+            <Button type="submit">{t.createPatient}</Button>
+          </form>
+        </SurfaceCard>
       ) : (
         <>
-          <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-slate-700">
-            {patient.name} · {patient.email} · <code className="text-xs">{patient.id}</code>
+          <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-white px-4 py-2 text-sm text-on-surface-variant shadow-soft">
+            <span className="size-2 rounded-full bg-primary-action" />
+            {t.patientIdentified}: <strong className="text-on-background">{patient.name}</strong>
+            <span className="text-outline">· {patient.email}</span>
           </div>
 
-          <section className="rounded-xl border border-slate-200 p-6">
-            <h2 className="font-semibold text-slate-900">{t.consentTitle}</h2>
-            <p className="mt-1 text-sm text-slate-600">{t.consentPurpose}</p>
-            <div className="mt-4 flex items-center gap-3">
-              <button onClick={() => recordConsent(true)} className={buttonClass}>
-                {t.grant}
-              </button>
-              <button
-                onClick={() => recordConsent(false)}
-                className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-600 hover:border-red-400 hover:text-red-600"
-              >
-                {t.revoke}
-              </button>
-              {consentGranted !== null && (
-                <span className={`text-sm ${consentGranted ? "text-teal-700" : "text-red-600"}`}>
-                  {consentGranted ? "✓" : "✗"}
-                </span>
-              )}
+          <SurfaceCard>
+            <div className="flex gap-3">
+              <Icon name="shield" className="text-[28px]" />
+              <div className="flex-1">
+                <h2 className="text-headline text-on-background">{t.consentTitle}</h2>
+                <p className="mt-1 text-caption text-on-surface-variant">{t.consentPurpose}</p>
+                <p className="mt-2 text-sm text-on-surface-variant">{t.consentHint}</p>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button type="button" onClick={() => recordConsent(true)}>
+                    {t.grant}
+                  </Button>
+                  <Button type="button" variant="danger" onClick={() => recordConsent(false)}>
+                    {t.revoke}
+                  </Button>
+                  {consentGranted !== null && (
+                    <span className={`text-sm font-medium ${consentGranted ? "text-primary" : "text-error"}`}>
+                      {consentGranted ? "✓" : "✗"}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-          </section>
+          </SurfaceCard>
 
-          <section className="rounded-xl border border-slate-200 p-6">
-            <h2 className="font-semibold text-slate-900">{t.prescriptionTitle}</h2>
-            <div className="mt-4 flex items-center gap-3">
-              <button onClick={issuePrescription} disabled={consentGranted !== true} className={buttonClass}>
-                {t.issue}
-              </button>
-              {pdfUrl && (
-                <a
-                  href={pdfUrl}
-                  download="levecare-demo-prescription.pdf"
-                  className="font-semibold text-teal-700 underline"
-                >
-                  {t.download}
-                </a>
-              )}
+          <SurfaceCard>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <div className="flex gap-3">
+                  <Icon name="description" className="text-[28px]" />
+                  <div>
+                    <h2 className="text-headline text-on-background">{t.prescriptionTitle}</h2>
+                    <p className="mt-1 text-caption text-on-surface-variant">{t.prescriptionHint}</p>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-3">
+                  <Button type="button" onClick={issuePrescription} disabled={consentGranted !== true}>
+                    {t.issue}
+                  </Button>
+                  {consentGranted !== true && (
+                    <p className="text-sm font-medium text-error">{t.requiresConsent}</p>
+                  )}
+                  {pdfUrl && (
+                    <a href={pdfUrl} download="levecare-demo-prescription.pdf" className="block font-semibold text-primary underline">
+                      {t.download}
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="relative min-h-[180px] overflow-hidden rounded-[12px] border border-hairline bg-surface-base p-4">
+                <div className="space-y-2 opacity-40">
+                  <div className="h-2 w-3/4 rounded bg-outline-variant" />
+                  <div className="h-2 w-full rounded bg-outline-variant" />
+                  <div className="h-2 w-5/6 rounded bg-outline-variant" />
+                  <div className="mt-6 h-2 w-2/3 rounded bg-outline-variant" />
+                  <div className="h-2 w-full rounded bg-outline-variant" />
+                </div>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <span className="-rotate-12 border-2 border-disclaimer/60 px-3 py-1 text-sm font-bold tracking-widest text-disclaimer/80">
+                    {t.demoWatermark}
+                  </span>
+                </div>
+              </div>
             </div>
-          </section>
+          </SurfaceCard>
         </>
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
     </div>
   );
 }

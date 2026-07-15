@@ -1,24 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api, type Slot } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { Dictionary } from "@/lib/i18n";
+import { Button } from "@/components/ui/Button";
+import { Field, Input } from "@/components/ui/Field";
+import { SurfaceCard } from "@/components/ui/SurfaceCard";
+import { Icon } from "@/components/ui/DemoBadge";
 
-export function BookingFlow({ dict }: { dict: Dictionary }) {
+function dayKey(iso: string) {
+  return iso.slice(0, 10);
+}
+
+function formatDay(iso: string, localeHint: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(localeHint === "en" ? "en-US" : "pt-BR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string }) {
   const t = dict.booking;
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [providerKey, setProviderKey] = useState<string | null>(null);
+  const [day, setDay] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
     api
       .listSlots()
       .then((res) => setSlots(res.slots))
       .catch(() => setError(true));
+    getToken().then((token) => setAuthed(Boolean(token)));
   }, []);
+
+  const providers = useMemo(() => {
+    const map = new Map<string, { key: string; provider: string; crm: string }>();
+    for (const slot of slots) {
+      const key = `${slot.provider}|${slot.crm}`;
+      if (!map.has(key)) map.set(key, { key, provider: slot.provider, crm: slot.crm });
+    }
+    return [...map.values()];
+  }, [slots]);
+
+  const providerSlots = useMemo(
+    () => (providerKey ? slots.filter((s) => `${s.provider}|${s.crm}` === providerKey) : []),
+    [slots, providerKey],
+  );
+
+  const days = useMemo(() => {
+    const set = new Map<string, string>();
+    for (const slot of providerSlots) {
+      const key = dayKey(slot.startsAt);
+      if (!set.has(key)) set.set(key, slot.startsAt);
+    }
+    return [...set.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [providerSlots]);
+
+  const times = useMemo(
+    () =>
+      providerSlots
+        .filter((s) => dayKey(s.startsAt) === day)
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+    [providerSlots, day],
+  );
+
+  useEffect(() => {
+    if (providers.length && !providerKey) setProviderKey(providers[0].key);
+  }, [providers, providerKey]);
+
+  useEffect(() => {
+    if (days.length && (!day || !days.some(([k]) => k === day))) setDay(days[0][0]);
+  }, [days, day]);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,7 +93,10 @@ export function BookingFlow({ dict }: { dict: Dictionary }) {
     const form = new FormData(event.currentTarget);
     try {
       const token = await getToken();
-      if (!token) throw new Error("not authenticated");
+      if (!token) {
+        setAuthed(false);
+        throw new Error("not authenticated");
+      }
       await api.book(
         { slotId: selected, email: String(form.get("email")), name: String(form.get("name")) },
         token,
@@ -43,60 +111,135 @@ export function BookingFlow({ dict }: { dict: Dictionary }) {
 
   if (confirmed) {
     return (
-      <div className="mt-8 rounded-xl border border-teal-300 bg-teal-50 p-6">
-        <h2 className="text-xl font-semibold text-slate-900">{t.confirmed}</h2>
-        <p className="mt-2 text-slate-600">{t.confirmedText}</p>
-      </div>
+      <SurfaceCard className="mt-8 border-primary-action/30 bg-secondary-container/20">
+        <Icon name="check_circle" className="text-[32px] text-primary" />
+        <h2 className="mt-3 text-headline text-on-background">{t.confirmed}</h2>
+        <p className="mt-2 text-body-md text-on-surface-variant">{t.confirmedText}</p>
+      </SurfaceCard>
     );
   }
 
-  const inputClass =
-    "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-teal-500 focus:outline-none";
-
   return (
-    <form onSubmit={onSubmit} className="mt-8 space-y-5">
+    <form onSubmit={onSubmit} className="mt-8 space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-slate-700">
-          {t.name}
-          <input name="name" required className={inputClass} />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          {t.email}
-          <input name="email" type="email" required className={inputClass} />
-        </label>
+        <Field label={t.name}>
+          <Input name="name" required />
+        </Field>
+        <Field label={t.email}>
+          <Input name="email" type="email" required />
+        </Field>
       </div>
-      <fieldset>
-        <legend className="text-sm font-medium text-slate-700">{t.pick}</legend>
-        <div className="mt-2 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2">
-          {slots.map((slot) => (
-            <button
-              type="button"
-              key={slot.id}
-              onClick={() => setSelected(slot.id)}
-              className={`rounded-lg border p-3 text-left text-sm ${
-                selected === slot.id
-                  ? "border-teal-500 bg-teal-50"
-                  : "border-slate-200 hover:border-teal-300"
-              }`}
-            >
-              <span className="block font-medium text-slate-800">
-                {new Date(slot.startsAt).toLocaleString()}
-              </span>
-              <span className="text-slate-500">
-                {slot.provider} · {slot.crm}
-              </span>
-            </button>
-          ))}
+
+      <section>
+        <h2 className="border-b border-hairline pb-2 text-headline text-on-background">
+          {t.sectionProviders}
+        </h2>
+        {providers.length === 0 && !error ? (
+          <p className="mt-4 text-caption text-outline">{t.noSlots}</p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {providers.map((p) => {
+              const active = providerKey === p.key;
+              return (
+                <button
+                  type="button"
+                  key={p.key}
+                  onClick={() => {
+                    setProviderKey(p.key);
+                    setSelected(null);
+                  }}
+                  className={`relative rounded-[16px] border p-4 text-left transition ${
+                    active
+                      ? "border-primary-action bg-primary-action/5 shadow-soft"
+                      : "border-hairline bg-white hover:border-primary-action/40"
+                  }`}
+                >
+                  {active && (
+                    <span className="absolute right-3 top-3 text-primary-action">
+                      <Icon name="check_circle" className="text-[20px]" />
+                    </span>
+                  )}
+                  <p className="font-display text-lg font-semibold text-on-background">{p.provider}</p>
+                  <p className="mt-1 text-caption text-on-surface-variant">CRM {p.crm}</p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {providerKey && days.length > 0 && (
+        <section>
+          <h2 className="border-b border-hairline pb-2 text-headline text-on-background">
+            {t.sectionSchedule}
+          </h2>
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {days.map(([key, sample]) => {
+              const active = day === key;
+              return (
+                <button
+                  type="button"
+                  key={key}
+                  onClick={() => {
+                    setDay(key);
+                    setSelected(null);
+                  }}
+                  className={`min-w-[88px] shrink-0 rounded-[12px] border px-3 py-3 text-center text-sm transition ${
+                    active
+                      ? "border-primary-action bg-primary-action text-white"
+                      : "border-hairline bg-white text-on-surface-variant hover:border-primary-action/40"
+                  }`}
+                >
+                  {formatDay(sample, locale)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {times.map((slot) => {
+              const active = selected === slot.id;
+              return (
+                <button
+                  type="button"
+                  key={slot.id}
+                  onClick={() => setSelected(slot.id)}
+                  className={`rounded-[12px] border px-3 py-2.5 text-sm font-medium transition ${
+                    active
+                      ? "border-primary-action bg-primary-action text-white"
+                      : "border-hairline bg-white text-on-surface hover:border-primary-action/40"
+                  }`}
+                >
+                  {formatTime(slot.startsAt)}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {authed === false && (
+        <div className="flex gap-3 rounded-[12px] border border-hairline bg-surface-container-low p-4 text-sm text-on-surface-variant">
+          <Icon name="info" />
+          <p>
+            {t.authRequired}{" "}
+            <Link href={`/${locale}/painel/`} className="font-semibold text-primary underline">
+              {dict.nav.dashboard}
+            </Link>
+          </p>
         </div>
-      </fieldset>
-      {error && <p className="text-sm text-red-600">{t.error}</p>}
-      <button
-        type="submit"
-        disabled={loading || !selected}
-        className="w-full rounded-lg bg-teal-600 px-5 py-3 font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
-      >
-        {loading ? "…" : t.submit}
-      </button>
+      )}
+
+      {error && <p className="text-sm text-error">{t.error}</p>}
+
+      <div className="flex flex-wrap gap-3">
+        <Button type="button" variant="ghost" onClick={() => setSelected(null)}>
+          {t.cancel}
+        </Button>
+        <Button type="submit" disabled={loading || !selected} className="min-w-[200px]">
+          {loading ? "…" : t.submit}
+          {!loading && <span aria-hidden>→</span>}
+        </Button>
+      </div>
     </form>
   );
 }
