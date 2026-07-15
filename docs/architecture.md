@@ -78,9 +78,9 @@ Routing (single HTTP API, path-based):
 
 ### ADR-007 — Next.js static export on S3 + CloudFront
 
-**Decision:** `output: "export"` Next.js, S3 origin, CloudFront distribution with OAC.
+**Decision:** `output: "export"` Next.js, S3 origin, CloudFront distribution with OAC. A CloudFront Function rewrites `/path/` → `/path/index.html` on viewer-request. Root `/` auto-picks `pt`/`en` from `navigator.languages` (default PT-BR) via a hard redirect — no SPA 403/404→`index.html` fallback (that mapped `/pt/` to the root stub and trapped reloads).
 
-**Why:** keeps the React/Next skill story while making the frontend an AWS artifact (unlike prior Vercel projects). No SSR needed — the app is a static shell over authenticated APIs. CloudFront's 1 TB/mo free tier covers it permanently.
+**Why:** keeps the React/Next skill story while making the frontend an AWS artifact (unlike prior Vercel projects). No SSR needed — the app is a static shell over authenticated APIs. CloudFront's 1 TB/mo free tier covers it permanently. S3 REST origins do not resolve directory indexes, so the edge rewrite is required for `trailingSlash` exports.
 
 ### ADR-008 — CDK (TypeScript) + GitHub Actions OIDC
 

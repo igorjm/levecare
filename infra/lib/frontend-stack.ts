@@ -11,6 +11,27 @@ export interface FrontendStackProps extends cdk.StackProps {
   apiUrl: string;
 }
 
+/**
+ * S3 REST origins do not resolve directory indexes. Next.js `trailingSlash`
+ * exports pages as `/pt/index.html`, so a viewer request for `/pt/` would 403
+ * and previously fell through the SPA error document to the root redirect stub.
+ * Rewrite directory URIs to `…/index.html` at the edge before S3.
+ */
+const INDEX_REWRITE_SOURCE = `
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  if (uri.endsWith('/')) {
+    request.uri = uri + 'index.html';
+  } else if (!uri.includes('.')) {
+    request.uri = uri + '/index.html';
+  }
+
+  return request;
+}
+`;
+
 export class FrontendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     super(scope, id, props);
@@ -22,18 +43,26 @@ export class FrontendStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
+    const rewriteFn = new cloudfront.Function(this, "IndexRewriteFn", {
+      code: cloudfront.FunctionCode.fromInline(INDEX_REWRITE_SOURCE),
+      comment: "Map /path/ to /path/index.html for Next static export",
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+
     const distribution = new cloudfront.Distribution(this, "Distribution", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(siteBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        functionAssociations: [
+          {
+            function: rewriteFn,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       defaultRootObject: "index.html",
-      errorResponses: [
-        // Static-export SPA fallback for client-side routes.
-        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html" },
-        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html" },
-      ],
+      // Genuine misses stay 404 — do not remap to root index.html (that hid /pt/).
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
     });
 
