@@ -39,7 +39,7 @@ export default async function Landing({ params }: { params: Promise<{ locale: st
           </div>
           <div className="overflow-hidden rounded-[20px] border border-hairline shadow-soft">
             <Image
-              src="/hero-lifestyle.jpg"
+              src="/hero-lifestyle.png"
               alt=""
               width={1024}
               height={640}
