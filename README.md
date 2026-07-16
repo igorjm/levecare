@@ -59,16 +59,13 @@ The backends are **AWS Lambda + DynamoDB + Cognito**—there is no all-in-one lo
 
 ```bash
 cd web && npm ci
-
-NEXT_PUBLIC_API_URL="https://31yjtptfg8.execute-api.us-east-1.amazonaws.com" \
-NEXT_PUBLIC_USER_POOL_ID="us-east-1_H2UchxRAL" \
-NEXT_PUBLIC_USER_POOL_CLIENT_ID="qm2hcuehjmf1ekksbr66s5evp" \
+# optional: cp .env.example .env.local  (demo Cognito/API defaults are already baked into code)
 npm run dev
 ```
 
 Open [http://localhost:3000/pt](http://localhost:3000/pt). Hot-reload covers landing, avaliação, agenda, and painel. Auth (Cognito), DynamoDB, and emails stay in AWS—so you can exercise the full patient journey without waiting for a frontend CloudFront deploy.
 
-Without the `NEXT_PUBLIC_*` vars, the API defaults to `http://localhost:3001` (nothing listens there).
+`NEXT_PUBLIC_*` can still override the baked-in demo API/Cognito IDs (see `web/.env.example`). Restart `npm run dev` after changing env files — Next only reads them at startup.
 
 **End-to-end checklist on localhost:**
 

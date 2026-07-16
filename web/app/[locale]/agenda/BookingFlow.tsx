@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Icon } from "@/components/ui/DemoBadge";
+import { EmptyState, LoadingSkeleton } from "@/components/ui/EmptyState";
 
 function dayKey(iso: string) {
   return iso.slice(0, 10);
@@ -21,12 +22,24 @@ function formatDay(iso: string, localeHint: string) {
   return d.toLocaleDateString(localeHint === "en" ? "en-US" : "pt-BR", {
     weekday: "short",
     day: "numeric",
-    month: "short",
   });
 }
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatSummary(iso: string, localeHint: string) {
+  return new Date(iso).toLocaleString(localeHint === "en" ? "en-US" : "pt-BR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function hourOf(iso: string) {
+  return new Date(iso).getUTCHours();
 }
 
 export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string }) {
@@ -38,16 +51,23 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(true);
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [journey, setJourney] = useState<JourneyState>({});
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
     api
       .listSlots()
       .then((res) => setSlots(res.slots))
-      .catch(() => setError(true));
+      .catch(() => setError(true))
+      .finally(() => setLoadingSlots(false));
     getToken().then((token) => setAuthed(Boolean(token)));
-    setJourney(loadJourney());
+    const j = loadJourney();
+    setJourney(j);
+    setName(j.name ?? "");
+    setEmail(j.email ?? "");
   }, []);
 
   const providers = useMemo(() => {
@@ -81,6 +101,12 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
     [providerSlots, day],
   );
 
+  const morning = times.filter((s) => hourOf(s.startsAt) < 12);
+  const afternoon = times.filter((s) => hourOf(s.startsAt) >= 12);
+
+  const selectedSlot = slots.find((s) => s.id === selected) ?? null;
+  const selectedProvider = providers.find((p) => p.key === providerKey);
+
   useEffect(() => {
     if (providers.length && !providerKey) setProviderKey(providers[0].key);
   }, [providers, providerKey]);
@@ -89,14 +115,10 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
     if (days.length && (!day || !days.some(([k]) => k === day))) setDay(days[0][0]);
   }, [days, day]);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected) return;
+  async function onSubmit() {
+    if (!selected || !email) return;
     setError(false);
     setLoading(true);
-    const form = new FormData(event.currentTarget);
-    const email = String(form.get("email"));
-    const name = String(form.get("name"));
     try {
       const token = await getToken();
       if (!token) {
@@ -115,7 +137,7 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
 
   if (confirmed) {
     return (
-      <SurfaceCard className="mt-8 border-primary-action/30 bg-secondary-container/20">
+      <SurfaceCard className="mt-8 border-primary-action/30 bg-secondary-container/20 animate-fade-in">
         <Icon name="check_circle" className="text-[32px] text-primary" />
         <h2 className="mt-3 text-headline text-on-background">{t.confirmed}</h2>
         <p className="mt-2 text-body-md text-on-surface-variant">{t.confirmedText}</p>
@@ -130,31 +152,54 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
     );
   }
 
-  return (
-    <form onSubmit={onSubmit} className="mt-8 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t.name}>
-          <Input key={`name-${journey.name ?? ""}`} name="name" defaultValue={journey.name} required />
-        </Field>
-        <Field label={t.email}>
-          <Input
-            key={`email-${journey.email ?? ""}`}
-            name="email"
-            type="email"
-            defaultValue={journey.email}
-            required
-          />
-        </Field>
+  function TimeGrid({ list }: { list: Slot[] }) {
+    if (!list.length) return null;
+    return (
+      <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+        {list.map((slot) => {
+          const active = selected === slot.id;
+          return (
+            <button
+              type="button"
+              key={slot.id}
+              onClick={() => setSelected(slot.id)}
+              className={`rounded-[12px] border px-3 py-2.5 text-sm font-medium transition ${
+                active
+                  ? "border-primary-action bg-primary-action/10 text-primary"
+                  : "border-hairline bg-white text-on-surface hover:border-primary-action/40"
+              }`}
+            >
+              {formatTime(slot.startsAt)}
+            </button>
+          );
+        })}
       </div>
+    );
+  }
+
+  return (
+    <div className="mt-8 space-y-6 pb-28">
+      {authed && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t.name}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          </Field>
+          <Field label={t.email}>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </Field>
+        </div>
+      )}
 
       <section>
-        <h2 className="border-b border-hairline pb-2 text-headline text-on-background">
-          {t.sectionProviders}
-        </h2>
-        {providers.length === 0 && !error ? (
-          <p className="mt-4 text-caption text-outline">{t.noSlots}</p>
+        <p className="text-label uppercase text-outline">{t.sectionProviders}</p>
+        {loadingSlots ? (
+          <div className="mt-4">
+            <LoadingSkeleton rows={2} />
+          </div>
+        ) : providers.length === 0 ? (
+          <EmptyState icon="event_busy" title={t.noSlots} description={t.error} />
         ) : (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {providers.map((p) => {
               const active = providerKey === p.key;
               return (
@@ -187,10 +232,8 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
 
       {providerKey && days.length > 0 && (
         <section>
-          <h2 className="border-b border-hairline pb-2 text-headline text-on-background">
-            {t.sectionSchedule}
-          </h2>
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          <p className="text-label uppercase text-outline">{t.sectionSchedule}</p>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {days.map(([key, sample]) => {
               const active = day === key;
               return (
@@ -201,7 +244,7 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
                     setDay(key);
                     setSelected(null);
                   }}
-                  className={`min-w-[88px] shrink-0 rounded-[12px] border px-3 py-3 text-center text-sm transition ${
+                  className={`min-w-[72px] shrink-0 rounded-[12px] border px-3 py-3 text-center text-sm transition ${
                     active
                       ? "border-primary-action bg-primary-action text-white"
                       : "border-hairline bg-white text-on-surface-variant hover:border-primary-action/40"
@@ -212,49 +255,64 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
               );
             })}
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {times.map((slot) => {
-              const active = selected === slot.id;
-              return (
-                <button
-                  type="button"
-                  key={slot.id}
-                  onClick={() => setSelected(slot.id)}
-                  className={`rounded-[12px] border px-3 py-2.5 text-sm font-medium transition ${
-                    active
-                      ? "border-primary-action bg-primary-action text-white"
-                      : "border-hairline bg-white text-on-surface hover:border-primary-action/40"
-                  }`}
-                >
-                  {formatTime(slot.startsAt)}
-                </button>
-              );
-            })}
-          </div>
+
+          <p className="mt-6 text-label uppercase text-outline">{t.sectionTimes}</p>
+          {morning.length > 0 && (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-on-surface-variant">{t.morning}</p>
+              <TimeGrid list={morning} />
+            </div>
+          )}
+          {afternoon.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-on-surface-variant">{t.afternoon}</p>
+              <TimeGrid list={afternoon} />
+            </div>
+          )}
         </section>
       )}
 
       {authed === false && (
-        <section className="space-y-4">
-          <div className="flex gap-3 rounded-[12px] border border-hairline bg-surface-container-low p-4 text-sm text-on-surface-variant">
-            <Icon name="info" />
-            <p>{t.authInline}</p>
-          </div>
-          <AuthCard dict={dict} defaultEmail={journey.email} onSignedIn={() => setAuthed(true)} />
-        </section>
+        <AuthCard
+          dict={dict}
+          defaultEmail={email || journey.email}
+          embedded
+          onSignedIn={() => {
+            setAuthed(true);
+            const j = loadJourney();
+            if (j.name) setName(j.name);
+            if (j.email) setEmail(j.email);
+          }}
+        />
       )}
 
       {error && <p className="text-sm text-error">{t.error}</p>}
 
-      <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="ghost" onClick={() => setSelected(null)}>
-          {t.cancel}
-        </Button>
-        <Button type="submit" disabled={loading || !selected || authed === false} className="min-w-[200px]">
-          {loading ? "…" : t.submit}
-          {!loading && <span aria-hidden>→</span>}
-        </Button>
+      {/* Sticky confirmation bar — Stitch Agenda signed-out */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgb(15_23_42/0.06)] backdrop-blur">
+        <div className="mx-auto flex max-w-[720px] flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 text-sm">
+            {selectedSlot ? (
+              <>
+                <p className="font-semibold text-on-background">
+                  {formatSummary(selectedSlot.startsAt, locale)}
+                </p>
+                <p className="truncate text-on-surface-variant">{selectedProvider?.provider}</p>
+              </>
+            ) : (
+              <p className="text-on-surface-variant">{t.pick}</p>
+            )}
+          </div>
+          <Button
+            type="button"
+            disabled={loading || !selected || authed === false || !email}
+            className="min-w-[200px]"
+            onClick={onSubmit}
+          >
+            {loading ? "…" : t.submit}
+          </Button>
+        </div>
       </div>
-    </form>
+    </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   api,
   ApiError,
@@ -18,6 +19,13 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Icon } from "@/components/ui/DemoBadge";
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  LoadingSkeleton,
+  StatusChip,
+} from "@/components/ui/EmptyState";
 
 type Stage = "loading" | "signedOut" | "signedIn";
 
@@ -31,6 +39,30 @@ function downloadPdf(pdfBase64: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function monthShort(iso: string, locale: string) {
+  return new Date(iso)
+    .toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", { month: "short" })
+    .replace(".", "")
+    .toUpperCase();
+}
+
+function dayNum(iso: string) {
+  return new Date(iso).getDate();
+}
+
 function formatDateTime(iso: string, locale: string) {
   return new Date(iso).toLocaleString(locale === "en" ? "en-US" : "pt-BR", {
     dateStyle: "medium",
@@ -40,6 +72,7 @@ function formatDateTime(iso: string, locale: string) {
 
 export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }) {
   const t = dict.dashboard;
+  const router = useRouter();
   const [stage, setStage] = useState<Stage>("loading");
   const [email, setEmail] = useState<string | null>(null);
   const [journey, setJourney] = useState<JourneyState>({});
@@ -50,7 +83,9 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cancelId, setCancelId] = useState<string | null>(null);
 
   const withToken = useCallback(async <T,>(fn: (token: string) => Promise<T>): Promise<T | null> => {
     const token = await getToken();
@@ -66,10 +101,9 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
     }
   }, []);
 
-  // Loads everything derivable from the signed-in user: patient record (by
-  // email), consent trail, consultations, prescriptions, and intake result.
   const loadAll = useCallback(async () => {
     setError(null);
+    setLoadFailed(false);
     const userEmail = await getUserEmail();
     if (!userEmail) {
       setStage("signedOut");
@@ -83,22 +117,24 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
     const token = await getToken();
     if (!token) return;
 
-    // Patient record: 404 just means "not created yet".
     try {
       const found = await api.findPatientByEmail(userEmail, token);
       setPatient(found);
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 404)) {
+        setLoadFailed(true);
         setError(e instanceof Error ? e.message : "request error");
       }
     } finally {
       setPatientChecked(true);
     }
 
-    api
-      .listBookings(token)
-      .then((res) => setBookings(res.bookings))
-      .catch(() => undefined);
+    try {
+      const res = await api.listBookings(token);
+      setBookings(res.bookings);
+    } catch {
+      /* bookings optional on first visit */
+    }
 
     if (j.intakeId) {
       api
@@ -108,7 +144,6 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
     }
   }, []);
 
-  // Consent + prescriptions depend on the patient record.
   const loadPatientDetails = useCallback(async (patientId: string) => {
     const token = await getToken();
     if (!token) return;
@@ -134,6 +169,16 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
   useEffect(() => {
     if (patient) loadPatientDetails(patient.id);
   }, [patient, loadPatientDetails]);
+
+  const upcoming = useMemo(
+    () => bookings.filter((b) => b.status !== "cancelled"),
+    [bookings],
+  );
+  const history = useMemo(
+    () => bookings.filter((b) => b.status === "cancelled"),
+    [bookings],
+  );
+  const cancelTarget = bookings.find((b) => b.id === cancelId) ?? null;
 
   async function createPatient(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -180,8 +225,10 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
     if (res) downloadPdf(res.pdfBase64, "levecare-demo-prescription.pdf");
   }
 
-  async function cancelBooking(id: string) {
-    setError(null);
+  async function confirmCancel() {
+    if (!cancelId) return;
+    const id = cancelId;
+    setCancelId(null);
     const cancelled = await withToken((token) => api.cancelBooking(id, token));
     if (cancelled) {
       setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b)));
@@ -189,7 +236,12 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
   }
 
   if (stage === "loading") {
-    return <p className="mt-12 text-center text-body-md text-on-surface-variant">{t.loading}</p>;
+    return (
+      <div className="mt-12 space-y-4">
+        <p className="text-center text-body-md text-on-surface-variant">{t.loading}</p>
+        <LoadingSkeleton rows={4} />
+      </div>
+    );
   }
 
   if (stage === "signedOut") {
@@ -200,18 +252,25 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
     );
   }
 
+  if (loadFailed) {
+    return (
+      <SurfaceCard className="mt-10">
+        <ErrorState
+          title={t.loadErrorTitle}
+          description={t.loadErrorText}
+          retryLabel={t.retry}
+          onRetry={loadAll}
+        />
+      </SurfaceCard>
+    );
+  }
+
+  const displayName = patient?.name ?? journey.name ?? email ?? "";
+
   return (
-    <div className="mt-8 space-y-6">
+    <div className="mt-8 space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {patient ? (
-          <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-white px-4 py-2 text-sm text-on-surface-variant shadow-soft">
-            <span className="size-2 rounded-full bg-primary-action" />
-            {t.patientIdentified}: <strong className="text-on-background">{patient.name}</strong>
-            <span className="text-outline">· {patient.email}</span>
-          </div>
-        ) : (
-          <span className="text-sm text-on-surface-variant">{email}</span>
-        )}
+        <p className="text-label uppercase text-outline">{t.subtitle}</p>
         <button
           type="button"
           onClick={() => signOut().then(() => setStage("signedOut"))}
@@ -221,18 +280,31 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
         </button>
       </div>
 
+      {/* Patient identity — Stitch Painel v2 header */}
+      {(patient || email) && (
+        <SurfaceCard className="flex flex-wrap items-center gap-4">
+          <div className="flex size-14 items-center justify-center rounded-full bg-primary text-lg font-semibold text-white">
+            {patient ? initials(patient.name) : "·"}
+          </div>
+          <div className="min-w-0">
+            <p className="font-display text-xl font-semibold text-on-background">{displayName}</p>
+            <p className="truncate text-sm text-on-surface-variant">{patient?.email ?? email}</p>
+            {patient && (
+              <p className="mt-0.5 text-xs text-outline">
+                {t.patientIdLabel}: {patient.id.slice(0, 8)}
+              </p>
+            )}
+          </div>
+        </SurfaceCard>
+      )}
+
       {!patient && patientChecked && (
         <SurfaceCard>
           <h2 className="text-headline text-on-background">{t.createPatient}</h2>
           <p className="mt-1 text-caption text-on-surface-variant">{t.createHint}</p>
           <form onSubmit={createPatient} className="mt-4 space-y-4">
             <Field label={t.name}>
-              <Input
-                key={`name-${journey.name ?? ""}`}
-                name="name"
-                defaultValue={journey.name}
-                required
-              />
+              <Input key={`name-${journey.name ?? ""}`} name="name" defaultValue={journey.name} required />
             </Field>
             <Field label={t.email}>
               <Input name="email" type="email" defaultValue={email ?? ""} readOnly required />
@@ -242,170 +314,227 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
         </SurfaceCard>
       )}
 
-      {intake && (
-        <SurfaceCard>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-3">
-              <Icon name="assignment" className="text-[28px]" />
-              <div>
-                <h2 className="text-headline text-on-background">{t.intakeTitle}</h2>
-                <p className="mt-1 text-caption text-on-surface-variant">
-                  {dict.intake.bmi}: <strong>{intake.bmi.toFixed(1)}</strong> ·{" "}
-                  {intake.eligible ? t.intakeEligible : t.intakeNotEligible}
-                </p>
-              </div>
-            </div>
-            <Link href={`/${locale}/avaliacao/`} className="text-sm font-semibold text-primary underline">
-              {t.redoIntake}
-            </Link>
-          </div>
-        </SurfaceCard>
-      )}
-
       {patient && (
-        <SurfaceCard>
-          <div className="flex gap-3">
-            <Icon name="shield" className="text-[28px]" />
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-headline text-on-background">{t.consentTitle}</h2>
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-                    consentGranted
-                      ? "bg-secondary-container/40 text-primary"
-                      : "bg-surface-container text-on-surface-variant"
-                  }`}
-                >
-                  <span
-                    className={`size-1.5 rounded-full ${consentGranted ? "bg-primary-action" : "bg-outline"}`}
-                  />
-                  {consentGranted ? t.consentActive : t.consentInactive}
-                </span>
-              </div>
-              <p className="mt-1 text-caption text-on-surface-variant">{t.consentPurpose}</p>
-              <p className="mt-2 text-sm text-on-surface-variant">{t.consentHint}</p>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button type="button" onClick={() => recordConsent(true)} disabled={consentGranted === true}>
-                  {t.grant}
-                </Button>
-                <Button
-                  type="button"
-                  variant="danger"
-                  onClick={() => recordConsent(false)}
-                  disabled={consentGranted !== true}
-                >
-                  {t.revoke}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </SurfaceCard>
-      )}
-
-      <SurfaceCard>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-3">
-            <Icon name="event" className="text-[28px]" />
-            <h2 className="text-headline text-on-background">{t.consultationsTitle}</h2>
-          </div>
-          <Link href={`/${locale}/agenda/`} className="text-sm font-semibold text-primary underline">
-            {t.bookNow}
-          </Link>
-        </div>
-        {bookings.length === 0 ? (
-          <p className="mt-4 text-caption text-outline">{t.noBookings}</p>
-        ) : (
-          <ul className="mt-4 divide-y divide-hairline">
-            {bookings.map((b) => (
-              <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div>
-                  <p className="font-semibold text-on-background">{b.provider}</p>
-                  <p className="text-caption text-on-surface-variant">
-                    {formatDateTime(b.startsAt, locale)}
-                    {b.crm ? ` · CRM ${b.crm}` : ""}
-                  </p>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-6">
+            {intake && (
+              <SurfaceCard>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex gap-3">
+                    <Icon name="monitor_weight" className="text-[28px]" />
+                    <div>
+                      <h2 className="text-headline text-on-background">{t.intakeTitle}</h2>
+                      <p className="mt-3 text-caption text-on-surface-variant">{t.intakeBmi}</p>
+                      <p className="font-display text-4xl font-bold text-on-background">
+                        {intake.bmi.toFixed(1)}{" "}
+                        <span className="text-lg font-semibold text-on-surface-variant">kg/m²</span>
+                      </p>
+                    </div>
+                  </div>
+                  <StatusChip tone={intake.eligible ? "success" : "neutral"}>
+                    {intake.eligible ? t.intakeEligible : t.intakeNotEligible}
+                  </StatusChip>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      b.status === "cancelled"
-                        ? "bg-surface-container text-outline line-through"
-                        : "bg-secondary-container/40 text-primary"
-                    }`}
-                  >
-                    {b.status === "cancelled" ? t.statusCancelled : t.statusConfirmed}
-                  </span>
-                  {b.status !== "cancelled" && (
-                    <Button type="button" variant="danger" onClick={() => cancelBooking(b.id)}>
-                      {t.cancelBooking}
-                    </Button>
+                <Link
+                  href={`/${locale}/avaliacao/`}
+                  className="mt-4 inline-block text-sm font-semibold text-primary underline"
+                >
+                  {t.redoIntake}
+                </Link>
+              </SurfaceCard>
+            )}
+
+            <SurfaceCard>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex gap-3">
+                  <Icon name="calendar_month" className="text-[28px]" />
+                  <div>
+                    <h2 className="text-headline text-on-background">{t.consultationsTitle}</h2>
+                    <p className="text-caption text-on-surface-variant">{t.consultationsSubtitle}</p>
+                  </div>
+                </div>
+                <Link href={`/${locale}/agenda/`} className="text-sm font-semibold text-primary underline">
+                  {t.bookNow}
+                </Link>
+              </div>
+
+              {upcoming.length === 0 && history.length === 0 ? (
+                <EmptyState
+                  icon="event_busy"
+                  title={t.noBookings}
+                  description={t.noBookingsHint}
+                  actionLabel={t.bookNow}
+                  onAction={() => router.push(`/${locale}/agenda/`)}
+                />
+              ) : (
+                <div className="mt-4 space-y-5">
+                  {upcoming.length > 0 && (
+                    <div>
+                      <p className="text-label uppercase text-outline">{t.upcoming}</p>
+                      <ul className="mt-2 space-y-3">
+                        {upcoming.map((b) => (
+                          <li
+                            key={b.id}
+                            className="flex flex-wrap items-center gap-3 rounded-[12px] border border-hairline p-3"
+                          >
+                            <div className="flex size-14 flex-col items-center justify-center rounded-[10px] bg-primary text-white">
+                              <span className="text-[10px] font-semibold uppercase leading-none">
+                                {monthShort(b.startsAt, locale)}
+                              </span>
+                              <span className="text-xl font-bold leading-none">{dayNum(b.startsAt)}</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-on-background">{b.provider}</p>
+                              <p className="text-caption text-on-surface-variant">
+                                {b.crm ? `CRM ${b.crm} · ` : ""}
+                                {formatTime(b.startsAt)} — {t.videoConsult}
+                              </p>
+                            </div>
+                            <StatusChip tone="success">{t.statusConfirmed}</StatusChip>
+                            <Button type="button" variant="danger" onClick={() => setCancelId(b.id)}>
+                              {t.cancelBooking}
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {history.length > 0 && (
+                    <div>
+                      <p className="text-label uppercase text-outline">{t.recentHistory}</p>
+                      <ul className="mt-2 space-y-3">
+                        {history.map((b) => (
+                          <li
+                            key={b.id}
+                            className="flex flex-wrap items-center gap-3 rounded-[12px] border border-hairline p-3 opacity-70"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-on-background line-through">{b.provider}</p>
+                              <p className="text-caption text-on-surface-variant">
+                                {formatDateTime(b.startsAt, locale)}
+                              </p>
+                            </div>
+                            <StatusChip tone="neutral">{t.statusCancelled}</StatusChip>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SurfaceCard>
+              )}
+            </SurfaceCard>
+          </div>
 
-      {patient && (
-        <SurfaceCard>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
+          <div className="space-y-6">
+            <SurfaceCard>
               <div className="flex gap-3">
-                <Icon name="description" className="text-[28px]" />
+                <Icon name="shield_lock" className="text-[28px]" />
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-headline text-on-background">{t.consentTitle}</h2>
+                    <StatusChip tone={consentGranted ? "success" : "neutral"}>
+                      <span
+                        className={`size-1.5 rounded-full ${consentGranted ? "bg-primary-action" : "bg-outline"}`}
+                      />
+                      {consentGranted ? t.consentActive : t.consentInactive}
+                    </StatusChip>
+                  </div>
+                  <p className="mt-2 text-sm text-on-surface-variant">{t.consentHint}</p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      onClick={() => recordConsent(true)}
+                      disabled={consentGranted === true}
+                    >
+                      {t.grant}
+                    </Button>
+                    {consentGranted === true && (
+                      <button
+                        type="button"
+                        onClick={() => recordConsent(false)}
+                        className="text-sm font-medium text-error underline"
+                      >
+                        {t.revoke}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </SurfaceCard>
+
+            <SurfaceCard>
+              <div className="flex gap-3">
+                <Icon name="medication" className="text-[28px]" />
                 <div>
                   <h2 className="text-headline text-on-background">{t.prescriptionsTitle}</h2>
                   <p className="mt-1 text-caption text-on-surface-variant">{t.prescriptionHint}</p>
                 </div>
               </div>
-              <div className="mt-5 space-y-3">
-                <Button type="button" onClick={issuePrescription} disabled={busy || consentGranted !== true}>
-                  {busy ? "…" : t.issue}
-                </Button>
-                {consentGranted !== true && (
-                  <p className="text-sm font-medium text-error">{t.requiresConsent}</p>
-                )}
-                {prescriptions.length === 0 ? (
-                  <p className="text-caption text-outline">{t.noPrescriptions}</p>
-                ) : (
-                  <ul className="divide-y divide-hairline">
-                    {prescriptions.map((rx) => (
-                      <li key={rx.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+
+              {prescriptions.length === 0 ? (
+                <div className="mt-2">
+                  <EmptyState
+                    icon="history"
+                    title={t.noPrescriptions}
+                    description={t.noPrescriptionsHint}
+                  />
+                </div>
+              ) : (
+                <ul className="mt-4 divide-y divide-hairline">
+                  {prescriptions.map((rx) => (
+                    <li key={rx.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="flex items-center gap-3">
+                        <Icon name="description" />
                         <p className="text-sm text-on-surface-variant">
                           {t.issuedAtLabel} {formatDateTime(rx.issuedAt, locale)}
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => redownload(rx.id)}
-                          className="text-sm font-semibold text-primary underline"
-                        >
-                          {t.redownload}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => redownload(rx.id)}
+                        className="text-sm font-semibold text-primary underline"
+                      >
+                        {t.redownload}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="mt-4 space-y-2">
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={issuePrescription}
+                  disabled={busy || consentGranted !== true}
+                >
+                  <Icon name="science" className="text-[18px] text-inherit" />
+                  {busy ? "…" : t.issue}
+                </Button>
+                {consentGranted !== true && (
+                  <p className="text-center text-sm font-medium text-error">{t.requiresConsent}</p>
                 )}
               </div>
-            </div>
-            <div className="relative min-h-[180px] overflow-hidden rounded-[12px] border border-hairline bg-surface-base p-4">
-              <div className="space-y-2 opacity-40">
-                <div className="h-2 w-3/4 rounded bg-outline-variant" />
-                <div className="h-2 w-full rounded bg-outline-variant" />
-                <div className="h-2 w-5/6 rounded bg-outline-variant" />
-                <div className="mt-6 h-2 w-2/3 rounded bg-outline-variant" />
-                <div className="h-2 w-full rounded bg-outline-variant" />
-              </div>
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <span className="-rotate-12 border-2 border-disclaimer/60 px-3 py-1 text-sm font-bold tracking-widest text-disclaimer/80">
-                  {t.demoWatermark}
-                </span>
-              </div>
-            </div>
+            </SurfaceCard>
           </div>
-        </SurfaceCard>
+        </div>
       )}
 
       {error && <p className="text-sm text-error">{error}</p>}
+
+      <ConfirmDialog
+        open={Boolean(cancelId)}
+        title={t.cancelConfirmTitle}
+        description={
+          cancelTarget
+            ? `${t.cancelConfirmText} (${cancelTarget.provider} · ${formatDateTime(cancelTarget.startsAt, locale)})`
+            : t.cancelConfirmText
+        }
+        confirmLabel={t.cancelConfirm}
+        cancelLabel={t.cancelKeep}
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelId(null)}
+      />
     </div>
   );
 }

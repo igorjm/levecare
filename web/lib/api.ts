@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+// Demo API (public in README). Env vars override when set (CI/deploy).
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://31yjtptfg8.execute-api.us-east-1.amazonaws.com";
 
 export interface IntakePayload {
   email: string;

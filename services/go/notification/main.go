@@ -35,27 +35,33 @@ func (h *handler) render(env envelope) (subject, body string) {
 	var d map[string]any
 	_ = json.Unmarshal(env.Detail, &d)
 
+	footer := "\n\n—\nDemonstração — LeveCare não é um serviço médico real.\nConformidade de estudo: CFM, ICP-Brasil & LGPD."
+
 	switch env.DetailType {
 	case "booking.confirmed":
 		return "LeveCare — consulta confirmada",
-			fmt.Sprintf("Sua consulta com %v está confirmada para %v.\n\n(Demonstração — LeveCare não é um serviço médico real.)",
-				d["provider"], d["startsAt"])
+			fmt.Sprintf(
+				"Sua consulta com %v foi agendada com sucesso.\n\nData e hora: %v\nLocal: Telemedicina (demonstração)\n\nVocê pode acompanhar o agendamento no Painel do paciente.%s",
+				d["provider"], d["startsAt"], footer,
+			)
 	case "booking.cancelled":
 		return "LeveCare — consulta cancelada",
-			fmt.Sprintf("Sua consulta com %v marcada para %v foi cancelada. Você pode agendar um novo horário quando quiser.\n\n(Demonstração — LeveCare não é um serviço médico real.)",
-				d["provider"], d["startsAt"])
+			fmt.Sprintf(
+				"Sua consulta com %v marcada para %v foi cancelada.\n\nVocê pode remarcar em outro horário disponível na Agenda.%s",
+				d["provider"], d["startsAt"], footer,
+			)
 	case "intake.completed":
 		status := "não elegível no momento"
 		if eligible, _ := d["eligible"].(bool); eligible {
 			status = "elegível para avaliação médica"
 		}
 		return "LeveCare — resultado da sua avaliação",
-			fmt.Sprintf("Sua avaliação inicial foi concluída: %s.\n\n(Demonstração — LeveCare não é um serviço médico real.)", status)
+			fmt.Sprintf("Sua avaliação inicial foi concluída: %s.%s", status, footer)
 	case "prescription.issued":
-		return "LeveCare — prescrição de demonstração emitida",
-			"Uma prescrição de DEMONSTRAÇÃO foi gerada. Este documento não tem validade médica.\n\n(Demonstração — LeveCare não é um serviço médico real.)"
+		return "LeveCare — nova prescrição (demonstração)",
+			"Uma nova receita foi emitida para o seu prontuário de demonstração.\n\n⚠ Este documento não tem validade médica, jurídica nem farmacêutica. Não utilize para aquisição de medicamentos.\n\nBaixe o PDF novamente pelo Painel do paciente." + footer
 	default:
-		return "LeveCare — atualização", fmt.Sprintf("Evento: %s\n\n(Demonstração.)", env.DetailType)
+		return "LeveCare — atualização", fmt.Sprintf("Evento: %s%s", env.DetailType, footer)
 	}
 }
 

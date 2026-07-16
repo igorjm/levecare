@@ -19,6 +19,7 @@ dist/
 # Env / local
 .env*
 !.env.example
+!web/.env.example
 .DS_Store
 *.log
 services/patients/dependency-reduced-pom.xml
