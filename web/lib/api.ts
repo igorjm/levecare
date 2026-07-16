@@ -116,7 +116,7 @@ export const api = {
     request<Patient>("/patients", { method: "POST", body: JSON.stringify(payload) }, token),
 
   findPatientByEmail: (email: string, token: string) =>
-    request<Patient>(`/patients?email=${encodeURIComponent(email)}`, {}, token),
+    request<Patient>(`/patients/by-email?email=${encodeURIComponent(email)}`, {}, token),
 
   recordConsent: (patientId: string, payload: { purpose: string; granted: boolean }, token: string) =>
     request(`/patients/${patientId}/consent`, { method: "POST", body: JSON.stringify(payload) }, token),

@@ -71,7 +71,7 @@ class PatientControllerTest {
         when(repository.findByEmail("maria@example.com")).thenReturn(Optional.of(
                 new Patient("p-1", "Maria", "maria@example.com", Instant.now())));
 
-        mockMvc.perform(get("/patients").param("email", "maria@example.com"))
+        mockMvc.perform(get("/patients/by-email").param("email", "maria@example.com"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("p-1"));
     }
@@ -80,7 +80,7 @@ class PatientControllerTest {
     void returns404WhenEmailHasNoPatient() throws Exception {
         when(repository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/patients").param("email", "nobody@example.com"))
+        mockMvc.perform(get("/patients/by-email").param("email", "nobody@example.com"))
                 .andExpect(status().isNotFound());
     }
 

@@ -74,14 +74,18 @@ public class PatientRepository {
 
     /** Most recently created patient record for this email, if any. */
     public Optional<Patient> findByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
         var response = dynamoDb.query(QueryRequest.builder()
                 .tableName(tableName)
                 .keyConditionExpression("pk = :pk AND begins_with(sk, :prefix)")
                 .expressionAttributeValues(Map.of(
-                        ":pk", s(emailPk(email)),
+                        ":pk", s(emailPk(email.trim())),
                         ":prefix", s("PATIENT#")))
                 .build());
         return response.items().stream()
+                .filter(item -> item.containsKey("id") && item.containsKey("createdAt"))
                 .map(this::toPatient)
                 .max(Comparator.comparing(Patient::createdAt));
     }

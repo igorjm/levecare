@@ -60,11 +60,17 @@ public class PatientController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "patient not found"));
     }
 
-    /** Recovers the caller's patient record after a page refresh (JWT-protected route). */
-    @GetMapping
-    public Patient findByEmail(@RequestParam String email) {
+    /**
+     * Recovers the caller's patient record after a page refresh (JWT-protected).
+     * Dedicated path (not GET /patients?email=) so API Gateway + the Lambda
+     * adapter never confuse this with GET /patients/{id}. Empty → 404 body-less
+     * ResponseEntity (more reliable than ResponseStatusException in this runtime).
+     */
+    @GetMapping("/by-email")
+    public ResponseEntity<Patient> findByEmail(@RequestParam String email) {
         return repository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "patient not found"));
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{id}/consent")
