@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Slot } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { loadJourney, saveJourney, type JourneyState } from "@/lib/journey";
 import type { Dictionary } from "@/lib/i18n";
+import { AuthCard } from "@/components/AuthCard";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
@@ -37,6 +39,7 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [journey, setJourney] = useState<JourneyState>({});
 
   useEffect(() => {
     api
@@ -44,6 +47,7 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
       .then((res) => setSlots(res.slots))
       .catch(() => setError(true));
     getToken().then((token) => setAuthed(Boolean(token)));
+    setJourney(loadJourney());
   }, []);
 
   const providers = useMemo(() => {
@@ -91,16 +95,16 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
     setError(false);
     setLoading(true);
     const form = new FormData(event.currentTarget);
+    const email = String(form.get("email"));
+    const name = String(form.get("name"));
     try {
       const token = await getToken();
       if (!token) {
         setAuthed(false);
         throw new Error("not authenticated");
       }
-      await api.book(
-        { slotId: selected, email: String(form.get("email")), name: String(form.get("name")) },
-        token,
-      );
+      await api.book({ slotId: selected, email, name, intakeId: journey.intakeId }, token);
+      saveJourney({ email, name });
       setConfirmed(true);
     } catch {
       setError(true);
@@ -115,6 +119,13 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
         <Icon name="check_circle" className="text-[32px] text-primary" />
         <h2 className="mt-3 text-headline text-on-background">{t.confirmed}</h2>
         <p className="mt-2 text-body-md text-on-surface-variant">{t.confirmedText}</p>
+        <Link
+          href={`/${locale}/painel/`}
+          className="mt-4 inline-flex items-center gap-2 font-semibold text-primary underline"
+        >
+          {t.goDashboard}
+          <span aria-hidden>→</span>
+        </Link>
       </SurfaceCard>
     );
   }
@@ -123,10 +134,16 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
     <form onSubmit={onSubmit} className="mt-8 space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t.name}>
-          <Input name="name" required />
+          <Input key={`name-${journey.name ?? ""}`} name="name" defaultValue={journey.name} required />
         </Field>
         <Field label={t.email}>
-          <Input name="email" type="email" required />
+          <Input
+            key={`email-${journey.email ?? ""}`}
+            name="email"
+            type="email"
+            defaultValue={journey.email}
+            required
+          />
         </Field>
       </div>
 
@@ -218,15 +235,13 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
       )}
 
       {authed === false && (
-        <div className="flex gap-3 rounded-[12px] border border-hairline bg-surface-container-low p-4 text-sm text-on-surface-variant">
-          <Icon name="info" />
-          <p>
-            {t.authRequired}{" "}
-            <Link href={`/${locale}/painel/`} className="font-semibold text-primary underline">
-              {dict.nav.dashboard}
-            </Link>
-          </p>
-        </div>
+        <section className="space-y-4">
+          <div className="flex gap-3 rounded-[12px] border border-hairline bg-surface-container-low p-4 text-sm text-on-surface-variant">
+            <Icon name="info" />
+            <p>{t.authInline}</p>
+          </div>
+          <AuthCard dict={dict} defaultEmail={journey.email} onSignedIn={() => setAuthed(true)} />
+        </section>
       )}
 
       {error && <p className="text-sm text-error">{t.error}</p>}
@@ -235,7 +250,7 @@ export function BookingFlow({ dict, locale }: { dict: Dictionary; locale: string
         <Button type="button" variant="ghost" onClick={() => setSelected(null)}>
           {t.cancel}
         </Button>
-        <Button type="submit" disabled={loading || !selected} className="min-w-[200px]">
+        <Button type="submit" disabled={loading || !selected || authed === false} className="min-w-[200px]">
           {loading ? "…" : t.submit}
           {!loading && <span aria-hidden>→</span>}
         </Button>

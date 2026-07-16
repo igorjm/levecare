@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { api, type IntakeResult } from "@/lib/api";
+import { saveJourney } from "@/lib/journey";
 import { bmiClassification, type Dictionary, type Locale } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
@@ -20,9 +21,10 @@ export function IntakeForm({ locale, dict }: { locale: Locale; dict: Dictionary 
     setError(false);
     setLoading(true);
     const form = new FormData(event.currentTarget);
+    const email = String(form.get("email"));
     try {
       const res = await api.submitIntake({
-        email: String(form.get("email")),
+        email,
         age: Number(form.get("age")),
         heightCm: Number(form.get("height")),
         weightKg: Number(form.get("weight")),
@@ -30,6 +32,7 @@ export function IntakeForm({ locale, dict }: { locale: Locale; dict: Dictionary 
         pregnant: form.get("pregnant") === "on",
         eatingDisorderHistory: form.get("eatingDisorder") === "on",
       });
+      saveJourney({ intakeId: res.id, email, bmi: res.bmi, eligible: res.eligible });
       setResult(res);
     } catch {
       setError(true);

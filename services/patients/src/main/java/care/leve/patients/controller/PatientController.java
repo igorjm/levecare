@@ -2,6 +2,7 @@ package care.leve.patients.controller;
 
 import care.leve.patients.model.ConsentRecord;
 import care.leve.patients.model.Patient;
+import care.leve.patients.model.PrescriptionRecord;
 import care.leve.patients.model.dto.ConsentRequest;
 import care.leve.patients.model.dto.CreatePatientRequest;
 import care.leve.patients.repository.PatientRepository;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -58,6 +60,13 @@ public class PatientController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "patient not found"));
     }
 
+    /** Recovers the caller's patient record after a page refresh (JWT-protected route). */
+    @GetMapping
+    public Patient findByEmail(@RequestParam String email) {
+        return repository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "patient not found"));
+    }
+
     @PostMapping("/{id}/consent")
     public ResponseEntity<ConsentRecord> recordConsent(@PathVariable String id,
                                                        @Valid @RequestBody ConsentRequest request) {
@@ -80,16 +89,38 @@ public class PatientController {
     public ResponseEntity<Map<String, Object>> issuePrescription(@PathVariable String id) {
         Patient patient = get(id);
         var prescription = prescriptionService.issue(patient);
+        repository.savePrescription(new PrescriptionRecord(
+                prescription.id(), patient.id(), prescription.issuedAt()));
         events.publish("prescription.issued", Map.of(
                 "prescriptionId", prescription.id(),
                 "patientId", patient.id(),
                 "email", patient.email()));
         log.info("demo prescription issued patient={} prescription={}", id, prescription.id());
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+        return ResponseEntity.status(HttpStatus.CREATED).body(prescriptionBody(prescription));
+    }
+
+    @GetMapping("/{id}/prescriptions")
+    public List<PrescriptionRecord> listPrescriptions(@PathVariable String id) {
+        get(id);
+        return repository.findPrescriptions(id);
+    }
+
+    /** Re-download: the demo PDF is regenerated deterministically from stored metadata. */
+    @GetMapping("/{id}/prescriptions/{rxId}")
+    public Map<String, Object> getPrescription(@PathVariable String id, @PathVariable String rxId) {
+        Patient patient = get(id);
+        PrescriptionRecord record = repository.findPrescription(id, rxId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "prescription not found"));
+        var prescription = prescriptionService.render(patient, record.id(), record.issuedAt());
+        return prescriptionBody(prescription);
+    }
+
+    private Map<String, Object> prescriptionBody(PrescriptionService.DemoPrescription prescription) {
+        return Map.of(
                 "id", prescription.id(),
                 "patientId", prescription.patientId(),
                 "issuedAt", prescription.issuedAt().toString(),
                 "disclaimer", "DEMONSTRACAO — sem validade medica",
-                "pdfBase64", Base64.getEncoder().encodeToString(prescription.pdf())));
+                "pdfBase64", Base64.getEncoder().encodeToString(prescription.pdf()));
     }
 }

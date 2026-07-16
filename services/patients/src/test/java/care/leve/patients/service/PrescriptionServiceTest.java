@@ -35,4 +35,24 @@ class PrescriptionServiceTest {
             assertTrue(text.contains("SNCR"), "must mark the SNCR integration placeholder");
         }
     }
+
+    @Test
+    void rendersDeterministicallyForReDownload() {
+        Patient patient = new Patient("p-1", "Maria Silva", "maria@example.com", Instant.now());
+        Instant issuedAt = Instant.parse("2026-07-01T12:00:00Z");
+
+        var first = service.render(patient, "rx-fixed", issuedAt);
+        var second = service.render(patient, "rx-fixed", issuedAt);
+
+        assertEquals(first.id(), second.id());
+        assertEquals(first.issuedAt(), second.issuedAt());
+        try (PDDocument a = Loader.loadPDF(first.pdf()); PDDocument b = Loader.loadPDF(second.pdf())) {
+            String textA = new PDFTextStripper().getText(a);
+            String textB = new PDFTextStripper().getText(b);
+            assertEquals(textA, textB, "re-download must reproduce the same document content");
+            assertTrue(textA.contains("rx-fixed"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

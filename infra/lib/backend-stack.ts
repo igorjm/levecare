@@ -187,6 +187,12 @@ export class BackendStack extends cdk.Stack {
       integration: schedulingIntegration,
       authorizer,
     });
+    api.addRoutes({
+      path: "/bookings/{id}/cancel",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: schedulingIntegration,
+      authorizer,
+    });
 
     this.apiUrl = api.apiEndpoint;
 

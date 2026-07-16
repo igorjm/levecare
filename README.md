@@ -51,9 +51,11 @@ docs/             Productization study, architecture, ADRs
 scripts/          Docker-aware Go/Java build & test wrappers
 ```
 
-## Local development
+## Local development & debugging
 
-The backends are **AWS Lambda**—there is no local API process. Day to day you run the Next.js UI against the deployed API and Cognito.
+The backends are **AWS Lambda + DynamoDB + Cognito**—there is no all-in-one local API server. The practical loop is: **Next.js on localhost talking to the deployed API/Cognito**, plus **unit tests** for Go/Java before you push.
+
+### 1. UI against the live API (day-to-day)
 
 ```bash
 cd web && npm ci
@@ -64,18 +66,57 @@ NEXT_PUBLIC_USER_POOL_CLIENT_ID="qm2hcuehjmf1ekksbr66s5evp" \
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Without the `NEXT_PUBLIC_*` vars, the API defaults to `http://localhost:3001` (nothing listens there).
+Open [http://localhost:3000/pt](http://localhost:3000/pt). Hot-reload covers landing, avaliação, agenda, and painel. Auth (Cognito), DynamoDB, and emails stay in AWS—so you can exercise the full patient journey without waiting for a frontend CloudFront deploy.
 
-### Build & test services (Docker-first)
+Without the `NEXT_PUBLIC_*` vars, the API defaults to `http://localhost:3001` (nothing listens there).
 
-**On the Mac:** Node.js 20+, Docker Desktop, AWS CLI (for deploy).
+**End-to-end checklist on localhost:**
 
-Go uses native `go` when installed (GitHub Actions/`setup-go`); otherwise Docker `golang:1.22`. Java/Maven prefer Docker `maven:3.9-eclipse-temurin-21` when the daemon is up (avoids host JDK mismatches), else native Maven.
+1. `/pt/avaliacao` → submit intake (email is saved in `sessionStorage`)
+2. `/pt/agenda` → name/email prefilled; pick slot; sign in/up inline if needed; confirm booking
+3. `/pt/painel` → patient auto-loads (or create once); grant LGPD consent; see consultations; issue/re-download demo Rx; cancel a booking
+
+Emails go to the SES-sandbox verified inbox (not your Cognito email) until the account leaves sandbox.
+
+### 2. Backend unit tests (no deploy)
+
+**On the Mac:** Node.js 20+, Go 1.22+ and/or Docker Desktop, JDK 21 and/or Docker, AWS CLI (for deploy).
 
 ```bash
+# All service tests (native tools, or Docker via scripts/with-*.sh)
+./scripts/test-docker.sh
+
+# Or separately:
+cd services/go && go test ./...
+cd services/patients && JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home" mvn -q test
+
+# Build Lambda artifacts (needed before cdk deploy)
 ./scripts/build-go.sh
 ./scripts/build-java.sh
-./scripts/test-docker.sh
+```
+
+### 3. Hit the API directly (curl)
+
+Public routes need no auth. JWT routes need a Cognito ID token (easiest: sign in on localhost, copy `Authorization` from the browser Network tab).
+
+```bash
+API=https://31yjtptfg8.execute-api.us-east-1.amazonaws.com
+
+# Public
+curl -s "$API/slots" | jq .
+curl -s -X POST "$API/intake" -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","age":35,"heightCm":170,"weightKg":95,"comorbidities":["hipertensao"],"pregnant":false,"eatingDisorderHistory":false}' | jq .
+
+# JWT (paste token from browser)
+TOKEN='…'
+curl -s "$API/bookings" -H "Authorization: Bearer $TOKEN" | jq .
+curl -s "$API/patients?email=you@example.com" -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+### 4. Infra check without deploy
+
+```bash
+cd infra && npm ci && npx cdk synth
 ```
 
 ### Deploy
@@ -85,7 +126,7 @@ cd web && npm ci && npm run build && cd ..
 cd infra && npm ci && npx cdk deploy --all
 ```
 
-One-time CDK bootstrap + GitHub OIDC: [docs/deployment.md](docs/deployment.md). CI deploys on push to `main` — [.github/workflows/deploy.yml](.github/workflows/deploy.yml).
+One-time CDK bootstrap + GitHub OIDC: [docs/deployment.md](docs/deployment.md). CI deploys on push to `main` — [.github/workflows/deploy.yml](.github/workflows/deploy.yml). For UI-only work, prefer `npm run dev` against the live API; push when you need backend/Lambda changes in AWS.
 
 ## Stack highlights
 

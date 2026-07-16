@@ -40,6 +40,10 @@ func (h *handler) render(env envelope) (subject, body string) {
 		return "LeveCare — consulta confirmada",
 			fmt.Sprintf("Sua consulta com %v está confirmada para %v.\n\n(Demonstração — LeveCare não é um serviço médico real.)",
 				d["provider"], d["startsAt"])
+	case "booking.cancelled":
+		return "LeveCare — consulta cancelada",
+			fmt.Sprintf("Sua consulta com %v marcada para %v foi cancelada. Você pode agendar um novo horário quando quiser.\n\n(Demonstração — LeveCare não é um serviço médico real.)",
+				d["provider"], d["startsAt"])
 	case "intake.completed":
 		status := "não elegível no momento"
 		if eligible, _ := d["eligible"].(bool); eligible {

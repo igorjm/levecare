@@ -30,9 +30,15 @@ public class PrescriptionService {
     }
 
     public DemoPrescription issue(Patient patient) {
-        String id = UUID.randomUUID().toString();
-        Instant issuedAt = Instant.now();
+        return render(patient, UUID.randomUUID().toString(), Instant.now());
+    }
 
+    /**
+     * Renders the demo PDF for a given prescription id and issue time. The
+     * content is a pure function of (patient, id, issuedAt), which lets a
+     * persisted prescription be re-downloaded without storing the PDF.
+     */
+    public DemoPrescription render(Patient patient, String id, Instant issuedAt) {
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
