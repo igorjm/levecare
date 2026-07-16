@@ -83,7 +83,7 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [patientLookupFailed, setPatientLookupFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
 
@@ -103,7 +103,7 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
 
   const loadAll = useCallback(async () => {
     setError(null);
-    setLoadFailed(false);
+    setPatientLookupFailed(false);
     const userEmail = await getUserEmail();
     if (!userEmail) {
       setStage("signedOut");
@@ -115,14 +115,24 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
     setJourney(j);
 
     const token = await getToken();
-    if (!token) return;
+    if (!token) {
+      setStage("signedOut");
+      return;
+    }
 
     try {
       const found = await api.findPatientByEmail(userEmail, token);
       setPatient(found);
+      setPatientLookupFailed(false);
     } catch (e) {
-      if (!(e instanceof ApiError && e.status === 404)) {
-        setLoadFailed(true);
+      if (e instanceof ApiError && e.status === 404) {
+        setPatient(null);
+      } else if (e instanceof ApiError && e.status === 401) {
+        setStage("signedOut");
+        return;
+      } else {
+        // CORS / network / 5xx — keep the signed-in shell (bookings may still work).
+        setPatientLookupFailed(true);
         setError(e instanceof Error ? e.message : "request error");
       }
     } finally {
@@ -252,19 +262,6 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
     );
   }
 
-  if (loadFailed) {
-    return (
-      <SurfaceCard className="mt-10">
-        <ErrorState
-          title={t.loadErrorTitle}
-          description={t.loadErrorText}
-          retryLabel={t.retry}
-          onRetry={loadAll}
-        />
-      </SurfaceCard>
-    );
-  }
-
   const displayName = patient?.name ?? journey.name ?? email ?? "";
 
   return (
@@ -298,7 +295,18 @@ export function Dashboard({ dict, locale }: { dict: Dictionary; locale: Locale }
         </SurfaceCard>
       )}
 
-      {!patient && patientChecked && (
+      {patientLookupFailed && (
+        <SurfaceCard>
+          <ErrorState
+            title={t.loadErrorTitle}
+            description={t.loadErrorText}
+            retryLabel={t.retry}
+            onRetry={loadAll}
+          />
+        </SurfaceCard>
+      )}
+
+      {!patient && patientChecked && !patientLookupFailed && (
         <SurfaceCard>
           <h2 className="text-headline text-on-background">{t.createPatient}</h2>
           <p className="mt-1 text-caption text-on-surface-variant">{t.createHint}</p>

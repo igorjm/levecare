@@ -163,15 +163,17 @@ export class BackendStack extends cdk.Stack {
     });
 
     // JWT-protected clinical and booking routes.
+    // Use explicit methods (not ANY): ANY registers OPTIONS under the JWT
+    // authorizer and breaks browser CORS preflight from localhost / CloudFront.
     api.addRoutes({
       path: "/patients/{proxy+}",
-      methods: [apigwv2.HttpMethod.ANY],
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
       integration: patientsIntegration,
       authorizer,
     });
     api.addRoutes({
       path: "/patients",
-      methods: [apigwv2.HttpMethod.ANY],
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
       integration: patientsIntegration,
       authorizer,
     });
